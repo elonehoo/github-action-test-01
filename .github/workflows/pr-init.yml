@@ -37,7 +37,7 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: "check-title.yml",  // workflow 文件名
+              workflow_id: "wip-check.yml",  // workflow 文件名
               ref: context.payload.pull_request.head.ref, // PR 源分支
               inputs: {
                 pr_number: String(context.payload.pull_request.number)
