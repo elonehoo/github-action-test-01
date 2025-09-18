@@ -7,7 +7,7 @@ on:
 permissions:
   pull-requests: write
   issues: write
-  actions: write   # 允许触发别的 workflow
+  actions: write
 
 jobs:
   switch-status:
@@ -23,7 +23,6 @@ jobs:
             const comment = context.payload.comment.body.trim();
             const pr_number = context.payload.issue.number;
 
-            // 只处理 /ready 和 /wip
             if (comment !== "/ready" && comment !== "/wip") {
               console.log("ℹ️ Not a status command, skipping.");
               return;
@@ -37,11 +36,14 @@ jobs:
 
             let title = pr.data.title;
             let newTitle = title;
+            let message = "";
 
             if (comment === "/ready" && title.startsWith("[WIP]")) {
               newTitle = title.replace("[WIP]", "[READY]");
+              message = "✅ 已切换到 **READY** 状态，可以合并。";
             } else if (comment === "/wip" && title.startsWith("[READY]")) {
               newTitle = title.replace("[READY]", "[WIP]");
+              message = "❌ 已切换到 **WIP** 状态，暂时禁止合并。";
             }
 
             if (newTitle !== title) {
@@ -53,6 +55,7 @@ jobs:
               });
               core.setOutput("pr_number", pr_number);
               core.setOutput("branch", pr.data.head.ref);
+              core.setOutput("message", message);
               console.log(`✅ Updated PR title to: ${newTitle}`);
             } else {
               console.log("ℹ️ No change needed.");
@@ -67,9 +70,22 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: "wip-check.yml",  // 确保和你的 check 文件名一致
+              workflow_id: "wip-check.yml",
               ref: "${{ steps.update-title.outputs.branch }}",
               inputs: {
                 pr_number: String(${{ steps.update-title.outputs.pr_number }})
               }
+            });
+
+      - name: Post comment to PR
+        if: steps.update-title.outputs.message != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.update-title.outputs.pr_number }},
+              body: `${{ steps.update-title.outputs.message }}`
             });
