@@ -1,6 +1,7 @@
 name: 🚦 Check PR Title
 
 on:
+  workflow_dispatch:   # 允许被 init.yml 主动触发
   pull_request:
     types: [edited, synchronize]
 
@@ -10,7 +11,7 @@ jobs:
     steps:
       - name: Block merge if PR is WIP
         run: |
-          TITLE="${{ github.event.pull_request.title }}"
+          TITLE="${{ github.event.pull_request.title || '' }}"
           echo "PR Title: $TITLE"
           if [[ "$TITLE" == "[WIP]"* ]]; then
             echo "❌ PR is WIP, merge blocked."
