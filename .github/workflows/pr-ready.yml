@@ -1,0 +1,36 @@
+name: 🚀 PR Ready Switch
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  switch-ready:
+    if: github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    steps:
+      - name: Switch WIP to READY
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const comment = context.payload.comment.body.trim();
+            if (comment === "/ready") {
+              const pr = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.issue.number
+              });
+
+              const title = pr.data.title;
+              if (title.startsWith("[WIP]")) {
+                const newTitle = title.replace("[WIP]", "[READY]");
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.data.number,
+                  title: newTitle
+                });
+                console.log(`✅ Updated PR title to: ${newTitle}`);
+              }
+            }
