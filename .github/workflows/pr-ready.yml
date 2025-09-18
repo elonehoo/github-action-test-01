@@ -4,6 +4,10 @@ on:
   issue_comment:
     types: [created]
 
+permissions:
+  pull-requests: write
+  issues: write
+
 jobs:
   switch-ready:
     if: github.event.issue.pull_request != null
@@ -16,19 +20,21 @@ jobs:
           script: |
             const comment = context.payload.comment.body.trim();
             if (comment === "/ready") {
+              const pr_number = context.payload.issue.number;
+
               const pr = await github.rest.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                pull_number: context.payload.issue.number
+                pull_number: pr_number
               });
 
-              const title = pr.data.title;
+              let title = pr.data.title;
               if (title.startsWith("[WIP]")) {
                 const newTitle = title.replace("[WIP]", "[READY]");
                 await github.rest.pulls.update({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  pull_number: pr.data.number,
+                  pull_number: pr_number,
                   title: newTitle
                 });
                 console.log(`✅ Updated PR title to: ${newTitle}`);
