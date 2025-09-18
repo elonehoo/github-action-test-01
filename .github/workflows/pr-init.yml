@@ -38,5 +38,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: "wip-check.yml",
-              ref: context.ref
+              ref: context.payload.pull_request.head.ref
             });
