@@ -54,7 +54,7 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: "check-title.yml",
+              workflow_id: "wip-check.yml",
               ref: "${{ steps.update-title.outputs.branch }}",
               inputs: {
                 pr_number: String(${{ steps.update-title.outputs.pr_number }})
