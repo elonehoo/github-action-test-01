@@ -1,4 +1,4 @@
-name: 🚀 PR Ready Switch
+name: 🔄 PR Status Switch
 
 on:
   issue_comment:
@@ -7,42 +7,55 @@ on:
 permissions:
   pull-requests: write
   issues: write
-  actions: write   # 关键：允许触发别的 workflow
+  actions: write   # 允许触发别的 workflow
 
 jobs:
-  switch-ready:
+  switch-status:
     if: github.event.issue.pull_request != null
     runs-on: ubuntu-latest
     steps:
-      - name: Switch WIP to READY
+      - name: Update PR title based on command
         id: update-title
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const comment = context.payload.comment.body.trim();
-            if (comment === "/ready") {
-              const pr_number = context.payload.issue.number;
+            const pr_number = context.payload.issue.number;
 
-              const pr = await github.rest.pulls.get({
+            // 只处理 /ready 和 /wip
+            if (comment !== "/ready" && comment !== "/wip") {
+              console.log("ℹ️ Not a status command, skipping.");
+              return;
+            }
+
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr_number
+            });
+
+            let title = pr.data.title;
+            let newTitle = title;
+
+            if (comment === "/ready" && title.startsWith("[WIP]")) {
+              newTitle = title.replace("[WIP]", "[READY]");
+            } else if (comment === "/wip" && title.startsWith("[READY]")) {
+              newTitle = title.replace("[READY]", "[WIP]");
+            }
+
+            if (newTitle !== title) {
+              await github.rest.pulls.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                pull_number: pr_number
+                pull_number: pr_number,
+                title: newTitle
               });
-
-              let title = pr.data.title;
-              if (title.startsWith("[WIP]")) {
-                const newTitle = title.replace("[WIP]", "[READY]");
-                await github.rest.pulls.update({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: pr_number,
-                  title: newTitle
-                });
-                core.setOutput("pr_number", pr_number);
-                core.setOutput("branch", pr.data.head.ref);
-                console.log(`✅ Updated PR title to: ${newTitle}`);
-              }
+              core.setOutput("pr_number", pr_number);
+              core.setOutput("branch", pr.data.head.ref);
+              console.log(`✅ Updated PR title to: ${newTitle}`);
+            } else {
+              console.log("ℹ️ No change needed.");
             }
 
       - name: Trigger check-title workflow
@@ -54,7 +67,7 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: "wip-check.yml",
+              workflow_id: "check-title.yml",  // 确保和你的 check 文件名一致
               ref: "${{ steps.update-title.outputs.branch }}",
               inputs: {
                 pr_number: String(${{ steps.update-title.outputs.pr_number }})
