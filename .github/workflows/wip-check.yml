@@ -9,6 +9,10 @@ on:
   pull_request:
     types: [edited, synchronize]
 
+permissions:
+  pull-requests: write
+  statuses: write   # 关键：允许写 commit status
+
 jobs:
   check-title:
     runs-on: ubuntu-latest
@@ -20,7 +24,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             let title = "";
+            let sha = "";
+
             if (context.eventName === "workflow_dispatch") {
+              // 通过输入的 PR number 获取 PR 数据
               const pr_number = context.payload.inputs.pr_number;
               const pr = await github.rest.pulls.get({
                 owner: context.repo.owner,
@@ -28,18 +35,36 @@ jobs:
                 pull_number: pr_number
               });
               title = pr.data.title;
+              sha = pr.data.head.sha;
             } else {
               title = context.payload.pull_request.title;
+              sha = context.payload.pull_request.head.sha;
             }
-            core.setOutput("title", title);
 
-      - name: Check title
-        run: |
-          TITLE="${{ steps.get-title.outputs.title }}"
-          echo "PR Title: $TITLE"
-          if [[ "$TITLE" == "[WIP]"* ]]; then
-            echo "❌ PR is WIP, merge blocked."
-            exit 1
-          else
-            echo "✅ PR is ready, merge allowed."
-          fi
+            core.setOutput("title", title);
+            core.setOutput("sha", sha);
+
+      - name: Report status to PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const title = "${{ steps.get-title.outputs.title }}";
+            const sha = "${{ steps.get-title.outputs.sha }}";
+
+            const state = title.startsWith("[WIP]") ? "failure" : "success";
+            const description = state === "failure"
+              ? "❌ PR 标题包含 [WIP]，禁止合并"
+              : "✅ 标题合法，可以合并";
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: state,
+              context: "PR Title Check",
+              description: description
+            });
+
+            console.log(`Title: ${title}`);
+            console.log(`Status: ${state}`);
