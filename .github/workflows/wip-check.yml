@@ -1,8 +1,8 @@
-name: 🚦 Prevent merge if WIP
+name: 🚦 Check PR Title
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [edited, synchronize]
 
 jobs:
   check-title:
